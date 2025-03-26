@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey
+from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from bot.db.base import Base
 
@@ -9,6 +9,7 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     login = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
+    voice_on = Column(Boolean, default=False)
 
     devices = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
 

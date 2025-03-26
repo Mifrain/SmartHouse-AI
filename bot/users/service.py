@@ -87,3 +87,13 @@ class UserService(BaseService):
             query = delete(UserSession).where(UserSession.user_id == user_id)
             await session.execute(query)
             await session.commit()
+
+    @staticmethod
+    async def change_voice_on(tg_id: int, change: bool):
+        async with async_session_maker() as session:
+            query = select(User).join(UserSession).filter(UserSession.tg_id == tg_id)
+            result = await session.execute(query)
+            user = result.scalars().first()
+
+            user.voice_on = change
+            await session.commit()

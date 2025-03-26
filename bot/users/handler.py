@@ -4,11 +4,18 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from bot.users.service import UserService
-from bot.users.keyboards import auth_keyboard, account_keyboard
+from bot.users.keyboards import auth_keyboard, get_account_keyboard
 from bot.general.keyboards import main_menu
 from bot.users.states import AuthStates, RegisterStates, ChooseActionStates, AccountStates
 
 router = Router()
+
+async def get_started_message(message: Message):
+    await message.answer(
+        "Выберите действие:\n\n🔑 Войти в существующий аккаунт\n🆕 Зарегистрироваться",
+        reply_markup=auth_keyboard
+    )
+
 
 @router.message(Command("start"))
 async def start_handler(message: Message, state: FSMContext):
@@ -37,6 +44,7 @@ async def auth_choice_handler(message: Message, state: FSMContext):
 @router.message(AuthStates.entering_login)
 async def auth_login_handler(message: Message, state: FSMContext):
     if message.text == "0":
+        await get_started_message(message)
         await state.set_state(ChooseActionStates.choose_action)
         return
 
@@ -52,6 +60,7 @@ async def auth_password_handler(message: Message, state: FSMContext):
     password = message.text
 
     if password == "0":
+        await get_started_message(message)
         await state.set_state(ChooseActionStates.choose_action)
         return
 
@@ -62,6 +71,8 @@ async def auth_password_handler(message: Message, state: FSMContext):
         await state.clear()
     else:
         await message.answer("❌ Неверный логин/пароль ❌\nПопробуйте снова.", reply_markup=None)
+        await message.answer("Введите ваш логин:\n\nДля отмены напишите 0")
+
         await state.set_state(AuthStates.entering_login)
 
 # Register
@@ -70,15 +81,16 @@ async def register_login_handler(message: Message, state: FSMContext):
     login = message.text
 
     if login == "0":
+        await get_started_message(message)
         await state.set_state(ChooseActionStates.choose_action)
         return
 
     if await UserService.user_exists(login):
-        await message.answer("❌ Пользователь с таким логином уже существует.\nПопробуйте другой логин или войдите в аккаунт.")
+        await message.answer("❌ Пользователь с таким логином уже существует.\nПопробуйте другой логин или войдите в аккаунт\n\nДля отмены напишите 0")
     else:
         await state.update_data(login=login)
         await state.set_state(RegisterStates.entering_password)
-        await message.answer("Теперь введите пароль:")
+        await message.answer("Теперь введите пароль:\n\nДля отмены напишите 0")
 
 
 @router.message(RegisterStates.entering_password)
@@ -88,10 +100,11 @@ async def register_password_handler(message: Message, state: FSMContext):
     password = message.text
 
     if len(password) < 8:
-        await message.answer("Пароль должен быть минимум 8 символов")
+        await message.answer("Пароль должен быть минимум 8 символов\n\nДля отмены напишите 0")
         return
 
     if password == "0":
+        await get_started_message(message)
         await state.set_state(ChooseActionStates.choose_action)
         return
 
@@ -110,6 +123,7 @@ async def logout_handler(message: Message, state: FSMContext):
     if user:
         await UserService.delete_session(user.id)
         await message.answer("✅ Вы вышли из аккаунта\n\nВыберите действие:\n\n🔑 Войти в существующий аккаунт\n🆕 Зарегистрироваться", reply_markup=auth_keyboard)
+        await state.set_state(ChooseActionStates.choose_action)
     else:
         await message.answer("❌ Ошибка: пользователь не найден.")
 
@@ -118,7 +132,7 @@ async def logout_handler(message: Message, state: FSMContext):
 # Account
 @router.message(F.text == "👤 Аккаунт 👤")
 async def account_handler(message: Message, state: FSMContext):
-    await message.answer("🔧 Настройки аккаунта:", reply_markup=account_keyboard)
+    await message.answer("🔧 Настройки аккаунта:", reply_markup=await get_account_keyboard(message.from_user.id))
     await state.set_state(AccountStates.choosing_action)
 
 # Account Edit
@@ -135,7 +149,7 @@ async def change_login_confirm(message: Message, state: FSMContext):
     new_login = message.text
 
     if new_login == "0":
-        await message.answer("❌ Отменено.", reply_markup=account_keyboard)
+        await message.answer("❌ Отменено.", reply_markup=await get_account_keyboard(message.from_user.id))
         await state.clear()
         return
 
@@ -147,7 +161,7 @@ async def change_login_confirm(message: Message, state: FSMContext):
 
     success = await UserService.change_login(user.id, new_login)
     if success:
-        await message.answer("✅ Логин успешно изменен!", reply_markup=account_keyboard)
+        await message.answer("✅ Логин успешно изменен!", reply_markup=await get_account_keyboard(message.from_user.id))
     else:
         await message.answer("❌ Этот логин уже занят. Попробуйте другой.")
 
@@ -167,7 +181,7 @@ async def change_password_old_check(message: Message, state: FSMContext):
     old_password = message.text
 
     if old_password == "0":
-        await message.answer("❌ Отменено.", reply_markup=account_keyboard)
+        await message.answer("❌ Отменено.", reply_markup=await get_account_keyboard(message.from_user.id))
         await state.clear()
         return
 
@@ -192,7 +206,7 @@ async def change_password_confirm(message: Message, state: FSMContext):
     new_password = message.text
 
     if new_password == "0":
-        await message.answer("❌ Отменено.", reply_markup=account_keyboard)
+        await message.answer("❌ Отменено.", reply_markup=await get_account_keyboard(message.from_user.id))
         await state.clear()
         return
 
@@ -207,8 +221,21 @@ async def change_password_confirm(message: Message, state: FSMContext):
 
     success = await UserService.change_password(user.id, old_password, new_password)
     if success:
-        await message.answer("✅ Пароль успешно изменен!", reply_markup=account_keyboard)
+        await message.answer("✅ Пароль успешно изменен!", reply_markup=await get_account_keyboard(message.from_user.id))
     else:
         await message.answer("❌ Ошибка при изменении пароля.")
 
     await state.clear()
+
+
+@router.message(F.text.in_(["Запретить голосовые ответы", "Разрешить голосовые ответы"]))
+async def change_user_voice_mode_handler(message: Message):
+
+    if message.text == "Запретить голосовые ответы":
+        change = False
+    else:
+        change = True
+    print(message.from_user.id)
+    await UserService.change_voice_on(message.from_user.id, change)
+
+    await message.answer(f"Голосовые ответы {'включены' if change else 'выключены'}! ", reply_markup=await get_account_keyboard(message.from_user.id))

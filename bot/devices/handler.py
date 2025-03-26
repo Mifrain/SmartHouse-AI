@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 
 from bot.devices.keyboards import *
 from bot.devices.service import DeviceService
-from bot.devices.states import DeviceStates
+from bot.devices.states import DeviceStates, ChangeDeviceParamsStates
 from bot.users.service import UserService
 
 router = Router()
@@ -109,7 +109,7 @@ async def device_info_handler(callback: CallbackQuery):
     text = f"📱 Устройство: {device.name}\n\n"
 
     text += f"Состояние: {condition}\n"
-    text += f"Параметры: {params}\n"
+    text += f"Параметры: \n{'\n'.join([f"{key}: {value}" for key, value in params.items()])}\n"
 
     await callback.message.answer(text, reply_markup=device_info_keyboard(device))
     await callback.message.delete()
@@ -140,7 +140,7 @@ async def toggle_device_handler(callback: CallbackQuery):
     text = f"📱 Устройство: {device.name}\n\n"
 
     text += f"Состояние: {state_text}\n"
-    text += f"Параметры: {params}\n"
+    text += f"Параметры: \n{'\n'.join([f"{key}: {value}" for key, value in params.items()])}\n"
 
     await callback.message.answer(text, reply_markup=device_info_keyboard(device))
     await callback.message.delete()
@@ -167,4 +167,54 @@ async def delete_device_handler(callback: CallbackQuery):
 
     await callback.answer("📱 Ваши устройства:\n", reply_markup=keyboard)
     await callback.message.delete()
+
+
+
+@router.callback_query(F.data.startswith("change_params_"))
+async def toggle_device_handler(callback: CallbackQuery, state: FSMContext):
+    device_id = int(callback.data.split("_")[2])
+
+    await callback.message.answer(f"Введите параметр и установочное значение в формате\nParam: Value\n\nДля отмены просто введите 0")
+    await state.set_state(ChangeDeviceParamsStates.new_params)
+    await state.update_data(device_id=device_id)
+
+
+@router.message(ChangeDeviceParamsStates.new_params)
+async def register_login_handler(message: Message, state: FSMContext):
+    new_params = message.text
+
+    new_params = new_params.split(': ')
+
+    devices = await DeviceService.get_user_devices(message.from_user.id)
+    text = "📱 Ваши устройства:\n"
+    keyboard = my_devices_keyboard(devices)
+
+    if len(new_params) != 2:
+        if new_params == "0":
+            await message.answer(text, reply_markup=keyboard)
+            await state.clear()
+        else:
+            await message.answer(
+                f"Неверный формат!\n\nВведите параметр и установочное значение в формате\nParam: Value\n\nДля отмены просто введите 0")
+            await state.set_state(ChangeDeviceParamsStates.new_params)
+        return
+
+    device_id = await state.get_value("device_id")
+    device = await DeviceService.get_my_device_by_id(device_id)
+
+    if new_params[0] not in device.params:
+        await message.answer(
+            f"Такого параметра не существует!!!\n\nВведите параметр и установочное значение в формате\nParam: Value\n\nДля отмены просто введите 0")
+        await state.set_state(ChangeDeviceParamsStates.new_params)
+
+
+    else:
+        device.params[new_params[0]] = new_params[1]
+        await DeviceService.update_device_state(device_id, device.params)
+        await message.answer(f"Параметр изменен!")
+
+        await message.answer(text, reply_markup=keyboard)
+        await state.clear()
+
+
 

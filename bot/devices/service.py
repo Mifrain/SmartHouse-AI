@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -61,6 +63,14 @@ class DeviceService(BaseService):
                 raise ValueError("❌ Устройство с таким именем уже добавлено.")
 
     @staticmethod
+    async def add_llm_user_device(user_id: int, device: dict):
+        async with async_session_maker() as session:
+
+            new_device = UserDevices(user_id=user_id, device_id=device["device_id"], name=device["type"], params=device["params"])
+            session.add(new_device)
+            await session.commit()
+
+    @staticmethod
     async def update_device_state(device_id: int, params: dict):
         async with async_session_maker() as session:
             query = select(UserDevices).filter_by(id=device_id)
@@ -70,6 +80,16 @@ class DeviceService(BaseService):
             if device:
                 device.params = params
                 await session.commit()
+
+    @staticmethod
+    async def update_device_params(device_id: int, param: dict):
+        async with async_session_maker() as session:
+            query = select(UserDevices).filter_by(id=device_id)
+            result = await session.execute(query)
+            device = result.scalars().first()
+
+            device.params[param['name']] = param['value']
+            await session.commit()
 
     @staticmethod
     async def remove_user_device(device_id: int):
@@ -84,3 +104,27 @@ class DeviceService(BaseService):
                 return True
             else:
                 return False
+
+    @staticmethod
+    async def get_all_devices_info():
+        devices = await DeviceService.get_available_devices()
+        devices_info = []
+        for device in devices:
+            devices_info.append({
+                'id': device.id,
+                'type': device.type,
+                'params': device.params
+            })
+        return devices_info
+
+    @staticmethod
+    async def get_user_devices_info(tg_id: int):
+        devices = await DeviceService.get_user_devices(tg_id)
+        devices_info = []
+        for device in devices:
+            devices_info.append({
+                'id': device.id,
+                'type': device.name,
+                'params': device.params
+            })
+        return devices_info

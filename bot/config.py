@@ -12,6 +12,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = None
 
+    GROQ_API_KEY: str
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def get_database_url(cls, v, info):

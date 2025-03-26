@@ -9,6 +9,8 @@ from bot.config import settings
 from bot.users.handler import router as users_router
 from bot.devices.handler import router as devices_router
 from bot.general.handler import router as general_router
+from bot.general.voice import router as voice_router
+
 from bot.middleware import RegistrationMiddleware
 
 
@@ -28,6 +30,7 @@ dp.message.middleware.register(RegistrationMiddleware())
 # Routers
 dp.include_router(users_router)
 dp.include_router(devices_router)
+dp.include_router(voice_router)
 dp.include_router(general_router)
 
 
